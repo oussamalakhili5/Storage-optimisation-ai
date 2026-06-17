@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -12,6 +13,10 @@ from app.database import Base, engine, SessionLocal
 from app.models.storage_record import StorageRecord
 from app.models.user import User
 from app.routes.auth_routes import router as auth_router
+from auth.jwt_manager import init_jwt
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # =========================
@@ -23,6 +28,9 @@ app = FastAPI(
     description="API pour l'optimisation dynamique des ressources de stockage avec Machine Learning et Hadoop HDFS",
     version="1.0.0"
 )
+
+# Initialize JWT authentication
+init_jwt(app)
 
 
 # =========================
@@ -36,15 +44,18 @@ Base.metadata.create_all(bind=engine)
 # CORS pour React
 # =========================
 
+# Get allowed origins from environment variable
+ALLOWED_ORIGINS = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
