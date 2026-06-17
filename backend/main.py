@@ -12,7 +12,8 @@ from io import StringIO
 from app.database import Base, engine, SessionLocal
 from app.models.storage_record import StorageRecord
 from app.models.user import User
-from app.routes.auth_routes import router as auth_router
+from app.routes.auth_routes import router as auth_router_old
+from routes.auth_routes import router as auth_router
 from auth.jwt_manager import init_jwt
 
 # Load environment variables from .env file
