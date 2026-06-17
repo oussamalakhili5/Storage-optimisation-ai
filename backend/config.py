@@ -45,17 +45,15 @@ class Config:
     CORS_HEADERS = ["Content-Type", "Authorization"]
     
     # ========================
-    # Database Settings
+    # Database Settings (MongoDB)
     # ========================
     
-    DATABASE_URL = os.getenv(
-        "DATABASE_URL",
-        "postgresql+psycopg://admin:admin123@localhost:5433/storage_db"
+    MONGO_URI = os.getenv(
+        "MONGO_URI",
+        "mongodb://admin:admin123@mongodb:27017/"
     )
-    SQLALCHEMY_ECHO = False
-    SQLALCHEMY_POOL_SIZE = 10
-    SQLALCHEMY_POOL_RECYCLE = 3600
-    SQLALCHEMY_POOL_PRE_PING = True
+    MONGO_DB_NAME = os.getenv("MONGO_DB", "storage_db")
+    MONGO_COLLECTION = "server_metrics"
     
     # ========================
     # Logging Settings
@@ -88,8 +86,8 @@ class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False
     
-    # Verbose database queries
-    SQLALCHEMY_ECHO = True
+    # Development MongoDB URI (same as base, override if needed)
+    # MONGO_URI can be overridden via environment variable
     
     # Verbose logging
     LOG_LEVEL = "DEBUG"
@@ -120,8 +118,8 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     
-    # Don't echo queries
-    SQLALCHEMY_ECHO = False
+    # Production MongoDB (override via environment variable)
+    # MONGO_URI should be set in .env.production
     
     # Production logging
     LOG_LEVEL = "WARNING"
@@ -138,8 +136,8 @@ class ProductionConfig(Config):
     # Shorter access token lifetime for security
     ACCESS_TOKEN_EXPIRE_MINUTES = 15
     
-    # Longer DB pool recycle
-    SQLALCHEMY_POOL_RECYCLE = 7200
+    # Production connection settings
+    # MongoDB handles connection pooling automatically
 
 
 class TestingConfig(Config):
@@ -149,8 +147,8 @@ class TestingConfig(Config):
     DEBUG = True
     TESTING = True
     
-    # Use in-memory SQLite for testing
-    DATABASE_URL = "sqlite:///:memory:"
+    # Use a separate test database
+    MONGO_DB_NAME = "storage_db_test"
     
     # Verbose logging for tests
     LOG_LEVEL = "DEBUG"

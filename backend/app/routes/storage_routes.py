@@ -2,22 +2,22 @@
 Storage Management Routes
 
 Secured CRUD endpoints for storage records with JWT authentication
-and Marshmallow validation.
+and Marshmallow validation. Data is stored in MongoDB (collection: server_metrics).
 
 Endpoints:
-    POST /api/storage    - Create a new storage record
-    GET  /api/storage    - List storage records (paginated, filterable)
+    POST /api/storage           - Create a new storage record
+    GET  /api/storage           - List storage records (paginated, filterable)
+    GET  /api/storage/critical  - List servers with utilization >= 90%
 """
 
 from typing import Optional, Dict, Any
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, status
-from sqlalchemy.orm import Session
 from marshmallow import ValidationError
+from bson import ObjectId
 
-from app.database import SessionLocal
-from app.models.storage_record import StorageRecord
+from app.database import get_db, server_metrics
 from auth.decorators import get_current_user
 from schemas.storage_schemas import StorageRecordCreateSchema, StorageRecordResponseSchema
 from utils.validators import validate_request
@@ -31,16 +31,32 @@ router = APIRouter(prefix="/api", tags=["storage"])
 
 
 # =========================
-# Database Dependency
+# Helpers
 # =========================
 
-def get_db():
-    """Provide a transactional database session per request."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+def _serialize_record(doc: dict) -> dict:
+    """
+    Convert a MongoDB document to a JSON-serializable dict.
+
+    Converts ObjectId to string and computes utilization_percent on the fly.
+    """
+    total = doc.get("total_storage", 0)
+    used = doc.get("used_storage", 0)
+    utilization = (used / total) * 100 if total and total > 0 else 0.0
+
+    return {
+        "id": str(doc["_id"]),
+        "server_id": doc.get("server_id"),
+        "date": doc.get("date"),
+        "total_storage": total,
+        "used_storage": used,
+        "free_storage": doc.get("free_storage", 0),
+        "utilization_percent": round(utilization, 2),
+        "cpu_usage": doc.get("cpu_usage", 0),
+        "memory_usage": doc.get("memory_usage", 0),
+        "read_frequency": doc.get("read_frequency", 0),
+        "write_frequency": doc.get("write_frequency", 0),
+    }
 
 
 # =========================
@@ -52,7 +68,6 @@ def get_db():
 async def create_storage_record(
     request: Request,
     current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
     validated_data: Dict = None,
 ):
     """
@@ -67,7 +82,6 @@ async def create_storage_record(
     Args:
         request: FastAPI Request object (used by validate_request decorator)
         current_user: Authenticated user payload from JWT token
-        db: Database session
         validated_data: Deserialized and validated request body (injected by decorator)
 
     Returns:
@@ -80,7 +94,6 @@ async def create_storage_record(
     """
     try:
         # Extract validated fields
-        server_id = validated_data.get("device_name")
         total_storage = validated_data.get("capacity_gb")
         used_storage = validated_data.get("used_gb")
         timestamp = validated_data.get("timestamp", datetime.utcnow())
@@ -89,43 +102,32 @@ async def create_storage_record(
         free_storage = total_storage - used_storage
         utilization_percent = (used_storage / total_storage) * 100 if total_storage > 0 else 0.0
 
-        # Build the storage record
-        record = StorageRecord(
-            server_id=server_id,
-            date=timestamp.strftime("%Y-%m-%d") if isinstance(timestamp, datetime) else str(timestamp),
-            total_storage=total_storage,
-            used_storage=used_storage,
-            free_storage=free_storage,
-            cpu_usage=validated_data.get("cpu_usage", 0.0),
-            memory_usage=validated_data.get("memory_usage", 0.0),
-            read_frequency=validated_data.get("read_frequency", 0.0),
-            write_frequency=validated_data.get("write_frequency", 0.0),
-        )
+        # Build the MongoDB document
+        document = {
+            "server_id": validated_data.get("device_name"),
+            "date": timestamp.strftime("%Y-%m-%d") if isinstance(timestamp, datetime) else str(timestamp),
+            "total_storage": total_storage,
+            "used_storage": used_storage,
+            "free_storage": free_storage,
+            "utilization_percent": round(utilization_percent, 2),
+            "cpu_usage": validated_data.get("cpu_usage", 0.0),
+            "memory_usage": validated_data.get("memory_usage", 0.0),
+            "read_frequency": validated_data.get("read_frequency", 0.0),
+            "write_frequency": validated_data.get("write_frequency", 0.0),
+            "created_at": datetime.utcnow(),
+        }
 
-        db.add(record)
-        db.commit()
-        db.refresh(record)
+        # Insert into MongoDB
+        result = server_metrics.insert_one(document)
+        document["_id"] = result.inserted_id
 
         return {
             "status": "success",
             "message": "Storage record created successfully",
-            "data": {
-                "id": record.id,
-                "server_id": record.server_id,
-                "date": record.date,
-                "total_storage": record.total_storage,
-                "used_storage": record.used_storage,
-                "free_storage": record.free_storage,
-                "utilization_percent": round(utilization_percent, 2),
-                "cpu_usage": record.cpu_usage,
-                "memory_usage": record.memory_usage,
-                "read_frequency": record.read_frequency,
-                "write_frequency": record.write_frequency,
-            },
+            "data": _serialize_record(document),
         }
 
     except Exception as e:
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create storage record: {str(e)}",
@@ -139,7 +141,6 @@ async def create_storage_record(
 @router.get("/storage", status_code=status.HTTP_200_OK)
 def list_storage_records(
     current_user: Dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, le=100, description="Records per page (max 100)"),
     server_id: Optional[str] = Query(None, description="Filter by server ID"),
@@ -154,7 +155,6 @@ def list_storage_records(
 
     Args:
         current_user: Authenticated user payload from JWT token
-        db: Database session
         page: Page number (default 1)
         per_page: Number of records per page (default 20, max 100)
         server_id: Optional filter by server identifier
@@ -170,13 +170,11 @@ def list_storage_records(
         HTTPException: 500 if database error occurs
     """
     try:
-        # Start building the query
-        query = db.query(StorageRecord)
-
-        # ---- Optional Filters ----
+        # ---- Build MongoDB filter ----
+        query_filter: Dict[str, Any] = {}
 
         if server_id:
-            query = query.filter(StorageRecord.server_id == server_id)
+            query_filter["server_id"] = server_id
 
         if start_date:
             try:
@@ -186,7 +184,7 @@ def list_storage_records(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid start_date format. Use YYYY-MM-DD.",
                 )
-            query = query.filter(StorageRecord.date >= start_date)
+            query_filter.setdefault("date", {})["$gte"] = start_date
 
         if end_date:
             try:
@@ -196,44 +194,22 @@ def list_storage_records(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid end_date format. Use YYYY-MM-DD.",
                 )
-            query = query.filter(StorageRecord.date <= end_date)
+            query_filter.setdefault("date", {})["$lte"] = end_date
 
         # ---- Pagination ----
-
-        total_records = query.count()
+        total_records = server_metrics.count_documents(query_filter)
         total_pages = max(1, -(-total_records // per_page))  # ceil division
-        offset = (page - 1) * per_page
+        skip = (page - 1) * per_page
 
-        records = (
-            query
-            .order_by(StorageRecord.id.desc())
-            .offset(offset)
+        cursor = (
+            server_metrics
+            .find(query_filter)
+            .sort("_id", -1)
+            .skip(skip)
             .limit(per_page)
-            .all()
         )
 
-        # ---- Serialize Response ----
-
-        records_data = []
-        for record in records:
-            utilization_percent = (
-                (record.used_storage / record.total_storage) * 100
-                if record.total_storage and record.total_storage > 0
-                else 0.0
-            )
-            records_data.append({
-                "id": record.id,
-                "server_id": record.server_id,
-                "date": record.date,
-                "total_storage": record.total_storage,
-                "used_storage": record.used_storage,
-                "free_storage": record.free_storage,
-                "utilization_percent": round(utilization_percent, 2),
-                "cpu_usage": record.cpu_usage,
-                "memory_usage": record.memory_usage,
-                "read_frequency": record.read_frequency,
-                "write_frequency": record.write_frequency,
-            })
+        records_data = [_serialize_record(doc) for doc in cursor]
 
         return {
             "status": "success",
@@ -249,11 +225,96 @@ def list_storage_records(
         }
 
     except HTTPException:
-        # Re-raise HTTP exceptions (e.g. bad date format) as-is
         raise
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve storage records: {str(e)}",
+        )
+
+
+# ============================================
+# GET /api/storage/critical  (Utilization ≥ 90%)
+# ============================================
+
+@router.get("/storage/critical", status_code=status.HTTP_200_OK)
+def get_critical_storage(
+    current_user: Dict = Depends(get_current_user),
+):
+    """
+    Retrieve all servers whose storage utilization is at or above 90%.
+
+    This endpoint uses a PyMongo query with the `$expr` operator to
+    compute utilization on the fly:
+        utilization = (used_storage / total_storage) * 100 >= 90
+
+    Requires JWT authentication.
+
+    Args:
+        current_user: Authenticated user payload from JWT token
+
+    Returns:
+        dict: List of critical storage records sorted by utilization descending
+
+    Raises:
+        HTTPException: 401 if not authenticated
+        HTTPException: 500 if database error occurs
+    """
+    try:
+        # MongoDB aggregation: compute utilization and filter >= 90%
+        pipeline = [
+            {
+                "$addFields": {
+                    "utilization_percent": {
+                        "$cond": {
+                            "if": {"$gt": ["$total_storage", 0]},
+                            "then": {
+                                "$multiply": [
+                                    {"$divide": ["$used_storage", "$total_storage"]},
+                                    100,
+                                ]
+                            },
+                            "else": 0,
+                        }
+                    }
+                }
+            },
+            {
+                "$match": {
+                    "utilization_percent": {"$gte": 90}
+                }
+            },
+            {
+                "$sort": {"utilization_percent": -1}
+            },
+        ]
+
+        results = list(server_metrics.aggregate(pipeline))
+
+        # Serialize ObjectId to string
+        critical_records = []
+        for doc in results:
+            critical_records.append({
+                "id": str(doc["_id"]),
+                "server_id": doc.get("server_id"),
+                "date": doc.get("date"),
+                "total_storage": doc.get("total_storage"),
+                "used_storage": doc.get("used_storage"),
+                "free_storage": doc.get("free_storage"),
+                "utilization_percent": round(doc.get("utilization_percent", 0), 2),
+                "cpu_usage": doc.get("cpu_usage", 0),
+                "memory_usage": doc.get("memory_usage", 0),
+            })
+
+        return {
+            "status": "success",
+            "count": len(critical_records),
+            "data": critical_records,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve critical storage records: {str(e)}",
         )
