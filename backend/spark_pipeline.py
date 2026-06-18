@@ -103,10 +103,10 @@ df_classified.groupBy("server_status").count().show()
 
 
 # ============================================
-# 5. Write to MongoDB (append mode)
+# 5. Write to MongoDB (Upsert / Idempotent mode)
 # ============================================
 
-print("[STEP 4] Writing classified data to MongoDB ...")
+print("[STEP 4] Writing classified data to MongoDB (Upsert) ...")
 print(f"  → Target: {MONGO_OUTPUT_URI}")
 
 (
@@ -114,6 +114,8 @@ print(f"  → Target: {MONGO_OUTPUT_URI}")
     .format("mongodb")
     .mode("append")
     .option("uri", MONGO_OUTPUT_URI)
+    .option("operationType", "update")
+    .option("idFieldList", "server_id,date")
     .save()
 )
 
