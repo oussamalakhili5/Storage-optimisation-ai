@@ -9,11 +9,10 @@ from pathlib import Path
 from hdfs import InsecureClient
 from io import StringIO
 
-from app.database import Base, engine, SessionLocal
-from app.models.storage_record import StorageRecord
-from app.models.user import User
-from app.routes.auth_routes import router as auth_router_old
-from routes.auth_routes import router as auth_router
+from app.database import init_indexes
+from app.routes.auth_routes import router as auth_router
+from app.routes.storage_routes import router as storage_router
+from app.routes.alert_routes import router as alert_router
 from auth.jwt_manager import init_jwt
 
 # Load environment variables from .env file
@@ -35,10 +34,10 @@ init_jwt(app)
 
 
 # =========================
-# Création des tables
+# Initialisation MongoDB
 # =========================
 
-Base.metadata.create_all(bind=engine)
+init_indexes()
 
 
 # =========================
@@ -61,10 +60,12 @@ app.add_middleware(
 
 
 # =========================
-# Routes Auth
+# Routes API
 # =========================
 
 app.include_router(auth_router)
+app.include_router(storage_router)
+app.include_router(alert_router)
 
 
 # =========================
