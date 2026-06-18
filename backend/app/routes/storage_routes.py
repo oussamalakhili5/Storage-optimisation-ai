@@ -21,6 +21,7 @@ from app.database import server_metrics
 from auth.decorators import get_current_user
 from schemas.storage_schemas import StorageRecordCreateSchema
 from utils.validators import validate_request
+from app.modules.prediction import predict_future, train_model
 
 
 router = APIRouter(prefix="/api/storage", tags=["storage"])
@@ -216,3 +217,51 @@ def get_storage_history(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# ML: POST /api/storage/train
+# ============================================
+
+@router.post("/train", status_code=status.HTTP_200_OK)
+def trigger_model_training(current_user: Dict = Depends(get_current_user)):
+    """
+    Manually triggers the training of the Machine Learning models
+    on historical data.
+    """
+    try:
+        result = train_model()
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to train models: {str(e)}")
+
+
+# ============================================
+# ML: GET /api/storage/forecast/{server_id}
+# ============================================
+
+@router.get("/forecast/{server_id}", status_code=status.HTTP_200_OK)
+def get_storage_forecast(
+    server_id: str, 
+    days: int = Query(7, ge=1, le=30),
+    current_user: Dict = Depends(get_current_user)
+):
+    """
+    Loads the trained ML model and predicts storage usage for the next X days.
+    """
+    try:
+        predictions = predict_future(server_id, days)
+        return {
+            "status": "success",
+            "server_id": server_id,
+            "forecast_days": days,
+            "data": predictions
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
