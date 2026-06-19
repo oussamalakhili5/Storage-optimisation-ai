@@ -10,7 +10,9 @@ This module provides decorators and dependency injection helpers for:
 from functools import wraps
 from typing import Optional, Dict
 from fastapi import Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+# from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 
 from .jwt_manager import decode_token
 

@@ -1,5 +1,10 @@
 import os
 from dotenv import load_dotenv
+
+# Load environment variables FIRST before any other imports
+# so that database connections use the correct .env values
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -14,9 +19,6 @@ from app.routes.auth_routes import router as auth_router
 from app.routes.storage_routes import router as storage_router
 from app.routes.alert_routes import router as alert_router
 from auth.jwt_manager import init_jwt
-
-# Load environment variables from .env file
-load_dotenv()
 
 
 # =========================

@@ -1,0 +1,44 @@
+{
+  "cce97e50c0787064579ed6f831b88975": {
+    "id": "cce97e50c0787064579ed6f831b88975",
+    "username": "testuser",
+    "email": "test@test.com",
+    "password_hash": "07480fb9e85b9396af06f006cf1c95024af2531c65fb505cfbd0add1e2f31573",
+    "created_at": "2026-06-19T00:36:58.681416"
+  },
+  "567c86f48c175e478486f29d2a81997f": {
+    "id": "567c86f48c175e478486f29d2a81997f",
+    "username": "codextest1781831387",
+    "email": "codex-test-1781831387@example.com",
+    "password_hash": "ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae",
+    "created_at": "2026-06-19T01:09:47.826004"
+  },
+  "ab05b45451566ce7da43802891dd3eef": {
+    "id": "ab05b45451566ce7da43802891dd3eef",
+    "username": "testuser2",
+    "email": "test2@example.com",
+    "password_hash": "c1b8b58c3e7ac442b525e87709d5c1aef49a5d5acb70551be645887a978e238a",
+    "created_at": "2026-06-19T14:33:51.134837"
+  },
+  "09baf1c2b201f29920f28b7a82393412": {
+    "id": "09baf1c2b201f29920f28b7a82393412",
+    "username": "demouser",
+    "email": "demo@example.com",
+    "password_hash": "db9f57e3dab2c039c93c6c0c7687f1f6b32d24f00c4d527f406e67a5145e8e3c",
+    "created_at": "2026-06-19T14:52:01.352387"
+  },
+  "4f23d5452553e13dd63f79f305429f41": {
+    "id": "4f23d5452553e13dd63f79f305429f41",
+    "username": "demouser2",
+    "email": "demo2@example.com",
+    "password_hash": "e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7",
+    "created_at": "2026-06-19T14:53:49.938943"
+  },
+  "024bae8d7ec752819c18d73bc68412db": {
+    "id": "024bae8d7ec752819c18d73bc68412db",
+    "username": "oussama",
+    "email": "ouslak7ili@gmail.com",
+    "password_hash": "3b612c75a7b5048a435fb6ec81e52ff92d6d795a8b5a9c17070f6a63c97a53b2",
+    "created_at": "2026-06-19T15:26:51.689541"
+  }
+}
