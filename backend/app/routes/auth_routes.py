@@ -31,7 +31,7 @@ def validate_email(email: str) -> bool:
 # =========================
 
 class UserRegister(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50, regex="^[a-zA-Z0-9_-]+$")
+    username: str = Field(..., min_length=3, max_length=50, pattern="^[a-zA-Z0-9_-]+$")
     email: str = Field(..., min_length=5, max_length=100)
     password: str = Field(..., min_length=8)
 
@@ -136,7 +136,7 @@ def register(user: UserRegister):
 # Login
 # =========================
 
-@router.post("/login/", response_model=TokenResponse)
+@router.post("/login/", response_model=AuthResponse)
 def login(user: UserLogin):
     """
     Authentifier un utilisateur et retourner JWT tokens.
@@ -177,6 +177,11 @@ def login(user: UserLogin):
     })
 
     return {
+        "user": {
+            "id": user_id_str,
+            "username": db_user["username"],
+            "email": db_user["email"]
+        },
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer"
