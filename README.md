@@ -1,89 +1,400 @@
-# 💾 Storage Optimization AI
+# Storage Optimization AI
 
-<div align="center">
-  <!-- <img src="docs/logo.png" alt="Project Logo" width="200"/> -->
-  <p><strong>A Big Data & AI ecosystem for predictive data center maintenance and capacity planning.</strong></p>
-</div>
+> A Big Data and AI platform for proactive storage monitoring, predictive capacity planning, and server saturation risk analysis.
 
----
+## Executive Summary
 
-## 📌 Executive Summary
-Managing storage capacity in large-scale data centers requires proactive, not reactive, decision-making. The **Storage Optimization AI** project implements a full end-to-end Big Data pipeline designed to ingest, process, and forecast server storage metrics. By leveraging Machine Learning against historical utilization data, the system predicts capacity exhaustion, allowing infrastructure teams to scale resources exactly when needed, eliminating both costly over-provisioning and critical downtime.
+Managing storage capacity in large-scale data centers requires proactive, not reactive, decision-making. **Storage Optimization AI** implements a full end-to-end Big Data pipeline designed to ingest, process, analyze, and forecast server storage metrics.
 
-## 🏗️ Architecture Overview
-This ecosystem follows a modern batch processing architecture (Lambda without the speed layer) ensuring robust data decoupling and fault tolerance:
+By applying Machine Learning to historical utilization data, the system predicts capacity exhaustion before it becomes operationally critical. This helps infrastructure teams scale resources at the right time, reducing costly over-provisioning while avoiding downtime caused by saturated storage nodes.
 
-1. **Data Lake (HDFS):** Raw server telemetry is ingested and immutably stored in a Hadoop Distributed File System, acting as the cold storage foundation.
-2. **Processing Engine (Apache Spark):** PySpark clusters read the raw data, compute utilization heuristics, apply threshold-based business rules, and structure the data for serving.
-3. **Serving Layer (MongoDB):** Processed metrics are written into a NoSQL document database utilizing an idempotent update strategy to guarantee data integrity.
-4. **Machine Learning Pipeline (Scikit-Learn):** A linear regression model trains independently on the historical dataset to compute predictive capacity vectors per server.
-5. **API & UI (FastAPI):** A high-performance Python backend exposes the aggregated and forecasted data to a React application for real-time visualization and alert monitoring.
+The project supports two main development paths:
 
-## ✨ Key Features
-- **Idempotent Data Processing:** The Spark-MongoDB connector is configured with a strict Upsert strategy (`operationType: update`, bounded by `server_id` and `date`). This guarantees zero data duplication during pipeline retries or manual trigger overlaps.
-- **AI-Driven Capacity Forecasting:** The system moves beyond static thresholds. A Scikit-Learn regression model forecasts a continuous 7-day usage trajectory per server, calculating the exact day a node will hit 100% saturation.
-- **Automated Orchestration:** The entire flow—from data generation and HDFS ingestion to Spark computation and ML retraining—is wrapped in an automated Bash orchestrator, scheduled via standard Linux Cron.
-- **Dual-Line Telemetry Visualization:** The React frontend utilizes Recharts to seamlessly stitch historical data (solid curves) with ML forecasts (dashed curves) on a single, continuous timeline.
+- **Local Demo Mode:** Runs the frontend and a standalone FastAPI server using local CSV data and JSON authentication for fast prototyping.
+- **Big Data Mode:** Runs the full production-style ecosystem with MongoDB, Hadoop HDFS, Apache Spark, and the production FastAPI backend through Docker Compose.
 
-## 💻 Technical Stack
-* **Big Data & Storage:** Apache Hadoop (HDFS), Apache Spark (PySpark)
-* **Database:** MongoDB (PyMongo)
-* **Machine Learning:** Scikit-Learn, Pandas, Pickle
-* **Backend:** FastAPI, Python 3.10+, JWT Authentication
-* **Frontend:** React, Vite, TailwindCSS, Recharts
-* **Infrastructure:** Docker, Docker Compose, Bash/Cron
+## Architecture Overview
 
-## 🚀 Getting Started
+This ecosystem follows a modern batch-processing architecture, similar to a Lambda architecture without the speed layer. It emphasizes data decoupling, reproducible processing, fault tolerance, and a clear separation between ingestion, processing, serving, and visualization.
+
+```text
+[Raw Telemetry / CSV]
+        |
+        v
+[Hadoop HDFS - Cold Storage]
+        |
+        v
+[Apache Spark - PySpark Cluster] -----> [Scikit-Learn Model Training]
+        |                                         |
+        v                                         v
+[MongoDB - Idempotent Serving] <---------- [storage_model.pkl]
+        |
+        v
+[FastAPI Secured Backend]
+        |
+        v
+[React + Vite Dashboard - Recharts]
+```
+
+| Layer | Role |
+| --- | --- |
+| **Data Lake - HDFS** | Stores raw server telemetry in Hadoop Distributed File System as the cold-storage foundation. |
+| **Processing Engine - Apache Spark** | Reads raw CSV telemetry, computes utilization metrics, applies business rules, and prepares data for serving. |
+| **Serving Layer - MongoDB** | Stores processed server metrics and user records in a document database for API consumption. |
+| **Machine Learning - Scikit-Learn** | Trains per-server Linear Regression models to forecast future storage usage. |
+| **API and UI - FastAPI + React** | Exposes metrics, alerts, forecasts, and authentication flows to an interactive dashboard. |
+
+## Key Features
+
+- **Idempotent Data Processing:** The Spark-to-MongoDB pipeline uses an upsert strategy based on `server_id` and `date`, preventing duplicate records during retries or repeated batch runs.
+- **AI-Driven Capacity Forecasting:** Scikit-Learn models forecast future storage usage per server, helping teams identify saturation risk before it becomes critical.
+- **Interactive Telemetry Dashboard:** The React dashboard visualizes historical storage usage, alerts, recommendations, statistics, anomalies, and forecast outputs.
+- **Automated Orchestration:** Batch scripts support local startup and pipeline execution, making the workflow easier to run manually or schedule with Cron or Windows Task Scheduler.
+- **Secured Backend APIs:** JWT-based authentication protects the main storage, alert, and forecasting endpoints.
+- **Dual Operating Modes:** The project can run as a lightweight local demo or as a full containerized Big Data environment.
+
+## Technical Stack
+
+| Layer | Technologies |
+| --- | --- |
+| **Frontend** | React, Vite, Recharts, CSS |
+| **Backend** | Python 3.10+, FastAPI, Uvicorn, Pydantic, Marshmallow |
+| **Authentication** | JWT, bcrypt, passlib, PyJWT |
+| **Database** | MongoDB, PyMongo |
+| **Big Data Storage** | Hadoop HDFS |
+| **Big Data Processing** | Apache Spark, PySpark, MongoDB Spark Connector |
+| **Machine Learning** | Scikit-Learn, Pandas, NumPy, Pickle |
+| **Infrastructure** | Docker, Docker Compose, Bash scripts, Windows batch scripts |
+
+## Project Structure
+
+```text
+storage-optimization-ai/
+|-- README.md
+|-- .env.example
+|-- docker-compose.yml
+|-- run_pipeline.sh
+|-- run_pipeline.bat
+|-- start_project.bat
+|-- backend/
+|   |-- main.py                         # Production FastAPI backend
+|   |-- dev_server.py                   # Standalone local demo backend
+|   |-- spark_pipeline.py               # PySpark HDFS-to-MongoDB pipeline
+|   |-- requirements.txt
+|   |-- users_db.json                   # Local demo auth storage
+|   |-- app/
+|   |   |-- database.py                 # MongoDB connections and indexes
+|   |   |-- data/
+|   |   |   |-- storage_data.csv         # Sample storage telemetry
+|   |   |   `-- storage_model.pkl        # Trained forecast model artifact
+|   |   |-- modules/
+|   |   |   |-- prediction.py            # ML training and forecast logic
+|   |   |   |-- anomaly_detection.py     # Outlier detection logic
+|   |   |   |-- alerts.py
+|   |   |   |-- recommendations.py
+|   |   |   `-- storage_analysis.py
+|   |   `-- routes/
+|   |       |-- auth_routes.py
+|   |       |-- storage_routes.py
+|   |       |-- alert_routes.py
+|   |       |-- prediction_routes.py
+|   |       `-- report_routes.py
+|   |-- auth/
+|   |   |-- jwt_manager.py
+|   |   `-- decorators.py
+|   |-- schemas/
+|   `-- utils/
+|-- frontend/
+|   |-- package.json
+|   |-- vite.config.js
+|   |-- index.html
+|   `-- src/
+|       |-- App.jsx
+|       |-- main.jsx
+|       |-- components/
+|       `-- pages/
+|-- notebooks/
+|   `-- model_training.ipynb
+`-- docs/
+    |-- cahier_de_charge.pdf
+    `-- rapport_final.docx
+```
+
+## Getting Started
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.10+ (for local backend development)
-- Node.js 18+ (for local frontend development)
 
-### Deployment
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-username/storage-optimization-ai.git
-   cd storage-optimization-ai
-   ```
+Install the following tools before running the project:
 
-2. **Spin up the Big Data Infrastructure:**
-   Ensure your Docker daemon is running, then initialize the Hadoop, Spark, and MongoDB containers:
-   ```bash
-   docker-compose up -d
-   ```
+- Git
+- Python 3.10+
+- Node.js 18+ and npm
+- Docker Desktop with Docker Compose
 
-3. **Start the Backend:**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
+Docker is only required for the full Big Data mode.
 
-4. **Start the Frontend:**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+## Path A: Quick Start - Local Demo Mode
 
-## ⚙️ Usage & Automation
-The ecosystem is designed to run completely autonomously. 
+Local Demo Mode runs the dashboard without Docker, MongoDB, Hadoop, or Spark. It reads from local CSV data and uses a local JSON file for authentication.
 
-To run a manual batch cycle:
-```bash
-chmod +x run_pipeline.sh
-./run_pipeline.sh
+### Automated Launcher - Windows
+
+From the project root:
+
+```powershell
+.\start_project.bat
 ```
 
-**Automation (Cron):**
-To configure the pipeline to ingest new data and retrain the ML models daily at midnight, add the following to your crontab (`crontab -e`):
+The script starts:
+
+| Service | URL |
+| --- | --- |
+| Backend API | `http://127.0.0.1:8000` |
+| Backend Docs | `http://127.0.0.1:8000/docs` |
+| Frontend UI | `http://localhost:5173` |
+
+### Manual Setup
+
+Start the backend:
+
 ```bash
-0 0 * * * cd /absolute/path/to/project && ./run_pipeline.sh >> pipeline.log 2>&1
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn dev_server:app --reload --port 8000
 ```
 
-## 🔮 Future Work & Scalability
-To graduate this project to enterprise scale, the following architectural upgrades are recommended:
-- **Streaming Ingestion:** Replace batch CSV uploads with Apache Kafka for real-time metric streaming.
-- **Advanced Orchestration:** Migrate from Bash/Cron to **Apache Airflow** or **Prefect** for DAG-based execution and robust failure recovery.
-- **Deep Learning Forecasting:** Swap the Linear Regression model for an LSTM (Long Short-Term Memory) or Prophet neural network to account for seasonal variations in storage usage.
+On Windows PowerShell, activate the virtual environment with:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Start the frontend in a separate terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the application:
+
+```text
+http://localhost:5173
+```
+
+## Path B: Full Scale - Docker and Big Data Mode
+
+Big Data Mode starts the full containerized infrastructure: backend, MongoDB, Hadoop HDFS, Spark master, and Spark worker.
+
+### Environment Initialization
+
+```bash
+cp .env.example .env
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Ensure the root `.env` file defines the MongoDB database name required by `docker-compose.yml`:
+
+```env
+MONGO_DB=storage_db
+```
+
+The Spark pipeline currently reads:
+
+```text
+hdfs://namenode:9000/data/storage_data.csv
+```
+
+Keep your HDFS path aligned with:
+
+```env
+HDFS_FILE_PATH=/data/storage_data.csv
+```
+
+### Launch Infrastructure
+
+```bash
+docker compose up -d --build
+```
+
+If your Docker installation uses the legacy command:
+
+```bash
+docker-compose up -d --build
+```
+
+### Useful Infrastructure Endpoints
+
+| Service | URL |
+| --- | --- |
+| Backend API Docs | `http://localhost:8000/docs` |
+| Hadoop NameNode UI | `http://localhost:9870` |
+| Spark Master UI | `http://localhost:8080` |
+| MongoDB Instance | `mongodb://localhost:27017` |
+
+### Launch Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Data Pipeline and ML Workflow
+
+Use the following workflow to feed raw server telemetry through the Big Data cluster and into the forecasting pipeline.
+
+### 1. Ship Telemetry to HDFS
+
+```bash
+docker cp backend/app/data/storage_data.csv hadoop_namenode:/tmp/storage_data.csv
+docker exec hadoop_namenode hdfs dfs -mkdir -p /data
+docker exec hadoop_namenode hdfs dfs -put -f /tmp/storage_data.csv /data/storage_data.csv
+```
+
+### 2. Execute Spark Pipeline
+
+```bash
+docker cp backend/spark_pipeline.py spark_master:/tmp/spark_pipeline.py
+docker exec spark_master spark-submit --master spark://spark-master:7077 --packages org.mongodb.spark:mongo-spark-connector_2.12:10.2.1 /tmp/spark_pipeline.py
+```
+
+The Spark job:
+
+1. Reads the CSV from HDFS.
+2. Computes `utilization_percent`.
+3. Assigns `server_status` using business rules.
+4. Writes the processed records into MongoDB.
+
+### 3. Train Forecasting Models
+
+After MongoDB contains historical telemetry, authenticate through the API and send a secured request:
+
+```text
+POST /api/storage/train
+```
+
+The backend trains one model per server and writes the forecast artifact to:
+
+```text
+backend/app/data/storage_model.pkl
+```
+
+## API Overview
+
+Interactive API documentation is available at:
+
+```text
+http://localhost:8000/docs
+```
+
+### Core Public and Authentication Endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/register/` | Register a new system engineer profile |
+| `POST` | `/api/login/` | Authenticate a user and generate Bearer JWT tokens |
+| `POST` | `/api/refresh/` | Renew short-lived access credentials |
+| `GET` | `/api/me/` | Return the current authenticated user profile |
+
+### Main Metrics and AI Analytics
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/storage/metrics` | Fetch latest metrics for all cluster nodes |
+| `GET` | `/api/storage/history/{server_id}` | Retrieve historical time-series logs for a specific node |
+| `POST` | `/api/storage/train` | Retrain Scikit-Learn forecasting models from MongoDB history |
+| `GET` | `/api/storage/forecast/{server_id}` | Compute multi-day capacity projections for a server |
+| `GET` | `/api/alerts/critical` | List servers violating critical saturation thresholds |
+
+### Local Demo Endpoints
+
+The local demo backend also exposes frontend-friendly endpoints without requiring MongoDB:
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/storage/status` | Latest storage status |
+| `GET` | `/storage/history` | Historical storage records |
+| `GET` | `/storage/prediction` | Next-day storage predictions |
+| `GET` | `/storage/anomalies` | Detected anomalies |
+| `GET` | `/storage/alerts` | Storage alerts |
+| `GET` | `/storage/recommendations` | Optimization recommendations |
+| `GET` | `/storage/statistics` | Dashboard summary statistics |
+| `GET` | `/storage/report` | Generated report summary |
+
+## Troubleshooting
+
+### `vite` is not recognized
+
+Cause: frontend dependencies are missing or installation failed.
+
+Fix:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Forecast endpoint reports that the ML model is missing
+
+Cause: `storage_model.pkl` has not been generated yet.
+
+Fix:
+
+1. Ensure MongoDB contains historical telemetry.
+2. Log in to generate an access token.
+3. Call `POST /api/storage/train`.
+4. Retry the forecast endpoint.
+
+### PySpark cannot establish an HDFS connection
+
+Cause: Hadoop may still be starting, or the HDFS file path does not match the pipeline path.
+
+Fix:
+
+1. Confirm the Hadoop NameNode container is running.
+2. Verify that the CSV exists in HDFS.
+3. Confirm the pipeline path points to `/data/storage_data.csv`.
+
+```bash
+docker exec hadoop_namenode hdfs dfs -ls /data
+```
+
+### MongoDB connection fails
+
+Cause: MongoDB is not running or `MONGO_DB` / `MONGO_URI` is misconfigured.
+
+Fix:
+
+```bash
+docker compose ps
+```
+
+Expected backend container URI:
+
+```env
+MONGO_URI=mongodb://mongodb:27017/storage_db
+```
+
+## Future Improvements
+
+- Add a unified cross-platform pipeline runner.
+- Add automated backend tests for authentication, storage metrics, alerts, and forecasts.
+- Add CI checks for frontend builds and backend smoke tests.
+- Add model versioning for trained forecasting artifacts.
+- Replace Linear Regression with stronger time-series models for seasonality-aware forecasting.
+- Add role-based access control for infrastructure teams and administrators.
+- Add deployment documentation for cloud or on-premise environments.
+
+## Disclaimer
+
+Storage Optimization AI is an educational and research-oriented system for demonstrating data engineering, infrastructure analytics, and applied Machine Learning. Forecasts and recommendations should be reviewed by qualified engineers before being used for production capacity decisions.
